@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="I Miss Manhattan - Interactive Map">
+  <title>Map View - I Miss Manhattan</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Apple MapKit JS -->
+  <script src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js" crossorigin async></script>
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+</head>
+<body class="m-0 p-0 overflow-hidden">
+
+  <!-- Loading Spinner -->
+  <div id="loading" class="loading-spinner">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- Layers Modal -->
+  <div id="layersModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Choose Layers</h2>
+        <button id="closeModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="layer-controls">
+          <button id="showAllBtn" class="control-btn">Show All</button>
+          <button id="hideAllBtn" class="control-btn">Hide All</button>
+        </div>
+        <p class="mb-1 ml-3 text-gray-700">Categories</p>
+        <div class="layer-list">
+          <label class="layer-item">
+            <img src="images/art.svg" alt="" class="layer-icon">
+            <span>Art Installation</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Art Installation" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/building.svg" alt="" class="layer-icon">
+            <span>Building</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Building" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/garden.svg" alt="" class="layer-icon">
+            <span>Garden</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Garden" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/playground.svg" alt="" class="layer-icon">
+            <span>Playground</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Playground" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/poi.svg" alt="" class="layer-icon">
+            <span>POI</span>
+            <input type="checkbox" class="layer-checkbox" data-category="POI" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/restroom.svg" alt="" class="layer-icon">
+            <span>Restroom</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Restroom" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/seat.svg" alt="" class="layer-icon">
+            <span>Seat</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Seat" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/shop.svg" alt="" class="layer-icon">
+            <span>Shop</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Shop" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/trail.svg" alt="" class="layer-icon">
+            <span>Trail</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Trail" checked>
+          </label>
+          <label class="layer-item">
+            <img src="images/tree.svg" alt="" class="layer-icon">
+            <span>Tree</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Tree" checked>
+          </label>
+        </div>
+        <p class="mb-1 mt-6 ml-3 text-gray-700">Trail Routes</p>
+        <div class="layer-list">
+          <label class="layer-item">
+            <img src="images/trail.svg" alt="" class="layer-icon">
+            <span>Trails</span>
+            <input type="checkbox" class="layer-checkbox" data-category="Trails" checked>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Controls -->
+  <div class="map-controls">
+    <button id="homeBtn" class="map-control-btn" title="Back to Home">
+      <img src="images/left-chevron.svg" alt="Back" width="24" height="24">
+    </button>
+    <button id="mapToggleBtn" class="map-control-btn" title="Toggle Map Type">
+      <img id="mapToggleIcon" src="images/globe.svg" alt="Globe" width="24" height="24">
+    </button>
+    <button id="layersBtn" class="map-control-btn" title="Choose Layers">
+      <img src="images/layers.svg" alt="Layers" width="24" height="24">
+    </button>
+  </div>
+
+  <script>
+    // Manhattan, KS center coordinates
+    const DEFAULT_REGION = {
+      centerLatitude: 39.17968,
+      centerLongitude: -96.56055,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05
+    };
+
+    let map;
+    let pois = [];
+    let poiAnnotations = {};
+    let trailOverlays = [];
+    let trailAnnotations = [];
+
+    // Trail GeoJSON files to load (add entries here as trails are created)
+    const TRAIL_FILES = [
+    ];
+
+    // Category to SVG icon mapping
+    const CATEGORY_ICONS = {
+      'Art Installation': 'images/art.svg',
+      'Building': 'images/building.svg',
+      'Garden': 'images/garden.svg',
+      'Playground': 'images/playground.svg',
+      'POI': 'images/poi.svg',
+      'Restroom': 'images/restroom.svg',
+      'Seat': 'images/seat.svg',
+      'Shop': 'images/shop.svg',
+      'Trail': 'images/trail.svg',
+      'Tree': 'images/tree.svg'
+    };
+
+    function getIconForCategory(category) {
+      return CATEGORY_ICONS[category] || 'images/poi.svg';
+    }
+
+    async function loadPOIs() {
+      try {
+        const response = await fetch('json/pois.json');
+        if (!response.ok) throw new Error('Failed to load POIs');
+        pois = await response.json();
+        console.log(`Loaded ${pois.length} POIs`);
+        return pois;
+      } catch (error) {
+        console.error('Error loading POIs:', error);
+        return [];
+      }
+    }
+
+    async function loadTrails() {
+      const trails = [];
+      for (const file of TRAIL_FILES) {
+        try {
+          const response = await fetch(file);
+          if (!response.ok) { console.error(`Failed to load: ${file}`); continue; }
+          trails.push(await response.json());
+          console.log(`Loaded trail: ${file}`);
+        } catch (error) {
+          console.error(`Error loading trail ${file}:`, error);
+        }
+      }
+      return trails;
+    }
+
+    function calculateDistance(coord1, coord2) {
+      const R = 3959;
+      const lat1 = coord1[1] * Math.PI / 180;
+      const lat2 = coord2[1] * Math.PI / 180;
+      const deltaLat = (coord2[1] - coord1[1]) * Math.PI / 180;
+      const deltaLon = (coord2[0] - coord1[0]) * Math.PI / 180;
+      const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                Math.sin(deltaLon/2) * Math.sin(deltaLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function getTrailDistance(coordinates) {
+      const allPoints = coordinates.flat();
+      let total = 0;
+      for (let i = 0; i < allPoints.length - 1; i++) {
+        total += calculateDistance(allPoints[i], allPoints[i + 1]);
+      }
+      return total;
+    }
+
+    function getTrailPointAtPercentage(coordinates, percentage) {
+      const allPoints = coordinates.flat();
+      const idx = Math.floor(allPoints.length * percentage);
+      const point = allPoints[Math.min(idx, allPoints.length - 1)];
+      return new mapkit.Coordinate(point[1], point[0]);
+    }
+
+    function addTrailMarker(coordinate, properties) {
+      const trailName = properties.name || 'Trail';
+      const trailInfo = properties.info || '';
+      const trailDesc = properties.desc || '';
+      const imageURL = properties.imageURL;
+
+      const annotation = new mapkit.Annotation(coordinate, (coordinate, options) => {
+        const container = document.createElement('div');
+        container.style.cssText = 'display: flex; flex-direction: column; align-items: center; cursor: pointer;';
+
+        const iconImg = document.createElement('img');
+        iconImg.src = 'images/trail.svg';
+        iconImg.style.cssText = 'width: 30px; height: 30px; display: block;';
+        iconImg.alt = trailName;
+
+        const label = document.createElement('div');
+        label.className = 'poi-name-label';
+        label.textContent = trailName;
+
+        container.appendChild(iconImg);
+        container.appendChild(label);
+        return container;
+      }, {
+        title: trailName,
+        subtitle: 'Trail',
+        data: { name: trailName, info: trailInfo, description: trailDesc, imageURL }
+      });
+
+      annotation.data = { name: trailName, info: trailInfo, description: trailDesc, imageURL };
+
+      annotation.callout = {
+        calloutElementForAnnotation: (annotation) => {
+          const calloutDiv = document.createElement('div');
+          calloutDiv.className = 'poi-callout';
+
+          const title = document.createElement('h3');
+          title.className = 'callout-title';
+          title.textContent = annotation.data.name;
+          calloutDiv.appendChild(title);
+
+          const category = document.createElement('p');
+          category.className = 'callout-category';
+          category.textContent = 'Trail';
+          calloutDiv.appendChild(category);
+
+          if (annotation.data.description) {
+            const desc = document.createElement('p');
+            desc.className = 'callout-description';
+            desc.textContent = annotation.data.description;
+            calloutDiv.appendChild(desc);
+          }
+
+          if (annotation.data.info) {
+            const info = document.createElement('p');
+            info.className = 'callout-info';
+            info.textContent = annotation.data.info;
+            calloutDiv.appendChild(info);
+          }
+
+          if (annotation.data.imageURL) {
+            const image = document.createElement('img');
+            image.className = 'callout-image';
+            image.src = annotation.data.imageURL;
+            image.alt = annotation.data.name;
+            calloutDiv.appendChild(image);
+          }
+
+          return calloutDiv;
+        }
+      };
+
+      map.addAnnotation(annotation);
+      trailAnnotations.push(annotation);
+    }
+
+    function addTrailOverlays(trails) {
+      if (!map || trails.length === 0) return;
+
+      trails.forEach(geojson => {
+        if (geojson.type === 'FeatureCollection' && geojson.features) {
+          geojson.features.forEach(feature => {
+            if (feature.geometry && feature.geometry.type === 'MultiLineString') {
+              const coordinates = feature.geometry.coordinates;
+              const properties = feature.properties || {};
+              const trailName = properties.name || 'Trail';
+              const trailColor = properties.color || 'blue';
+              const trailInfo = properties.info || '';
+              const trailDesc = properties.desc || '';
+
+              function swiftColorToHex(name) {
+                const colors = {
+                  black: '#000000', blue: '#0088ff', brown: '#ac7f5e',
+                  cyan: '#00c0e8', gray: '#8e8e94', green: '#35c759',
+                  indigo: '#6155f5', mint: '#00c8b3', orange: '#ff8d28',
+                  pink: '#ff2d55', purple: '#cb30e0', red: '#ff393c',
+                  teal: '#00c0e8', white: '#ffffff', yellow: '#ffcc00'
+                };
+                return colors[name.toLowerCase()] || name;
+              }
+
+              const strokeColor = swiftColorToHex(trailColor);
+
+              coordinates.forEach((segment, index) => {
+                const points = segment.map(coord => new mapkit.Coordinate(coord[1], coord[0]));
+                const style = new mapkit.Style({ lineWidth: 3, strokeColor, strokeOpacity: 0.8 });
+                const polyline = new mapkit.PolylineOverlay(points, { style });
+                polyline.data = { name: trailName, segment: index + 1, color: trailColor, info: trailInfo, description: trailDesc };
+                map.addOverlay(polyline);
+                trailOverlays.push(polyline);
+              });
+
+              const dist = getTrailDistance(coordinates);
+              if (dist > 2) {
+                addTrailMarker(getTrailPointAtPercentage(coordinates, 0.25), properties);
+                addTrailMarker(getTrailPointAtPercentage(coordinates, 0.50), properties);
+                addTrailMarker(getTrailPointAtPercentage(coordinates, 0.75), properties);
+              } else {
+                addTrailMarker(getTrailPointAtPercentage(coordinates, 0.5), properties);
+              }
+            }
+          });
+        }
+      });
+    }
+
+    function addPOIMarkers() {
+      if (!map || pois.length === 0) return;
+
+      Object.keys(CATEGORY_ICONS).forEach(cat => { poiAnnotations[cat] = []; });
+
+      pois.forEach(poi => {
+        const coordinate = new mapkit.Coordinate(poi.latitude, poi.longitude);
+        const iconUrl = getIconForCategory(poi.category);
+
+        const annotation = new mapkit.Annotation(coordinate, () => {
+          const container = document.createElement('div');
+          container.style.cssText = 'display: flex; flex-direction: column; align-items: center; cursor: pointer;';
+
+          const iconImg = document.createElement('img');
+          iconImg.src = iconUrl;
+          iconImg.style.cssText = 'width: 30px; height: 30px; display: block;';
+          iconImg.alt = poi.name;
+
+          const label = document.createElement('div');
+          label.className = 'poi-name-label';
+          label.textContent = poi.name;
+
+          container.appendChild(iconImg);
+          container.appendChild(label);
+          return container;
+        }, { title: poi.name, subtitle: poi.category, data: poi });
+
+        annotation.data = poi;
+
+        annotation.callout = {
+          calloutElementForAnnotation: (annotation) => {
+            const calloutDiv = document.createElement('div');
+            calloutDiv.className = 'poi-callout';
+
+            const title = document.createElement('h3');
+            title.className = 'callout-title';
+            title.textContent = annotation.data.name;
+            calloutDiv.appendChild(title);
+
+            if (annotation.data.category) {
+              const cat = document.createElement('p');
+              cat.className = 'callout-category';
+              cat.textContent = annotation.data.category;
+              calloutDiv.appendChild(cat);
+            }
+
+            if (annotation.data.description) {
+              const desc = document.createElement('p');
+              desc.className = 'callout-description';
+              desc.textContent = annotation.data.description;
+              calloutDiv.appendChild(desc);
+            }
+
+            if (annotation.data.imageURL) {
+              const image = document.createElement('img');
+              image.className = 'callout-image';
+              image.src = annotation.data.imageURL;
+              image.alt = annotation.data.name;
+              calloutDiv.appendChild(image);
+            }
+
+            return calloutDiv;
+          }
+        };
+
+        if (!poiAnnotations[poi.category]) poiAnnotations[poi.category] = [];
+        poiAnnotations[poi.category].push(annotation);
+        map.addAnnotation(annotation);
+      });
+
+      console.log(`Added ${pois.length} POI markers to map`);
+    }
+
+    async function initMapKit() {
+      try {
+        mapkit.init({
+          authorizationCallback: (done) => {
+            const JWT_TOKEN = 'eyJraWQiOiJZNkQzTUdHUDk5IiwidHlwIjoiSldUIiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJRNThBTlBFTTlGIiwiaWF0IjoxNzgxODIyNjU0LCJvcmlnaW4iOiJpbWlzc21hbmhhdHRhbi5jb20iLCJzY29wZSI6Im1hcGtpdF9qcyJ9.MPKAjqLftgda3i2blf1227kCoFLWwp1SuO20eZhAf95s__VPdjchMhmLhsKNoguoQpg3Z1fxiI9gJhCwyOln3A';
+            done(JWT_TOKEN);
+          },
+          language: 'en'
+        });
+
+        map = new mapkit.Map('map', {
+          mapType: mapkit.Map.MapTypes.Satellite,
+          showsMapTypeControl: false,
+          showsZoomControl: true,
+          showsUserLocationControl: true,
+          showsCompass: mapkit.FeatureVisibility.Adaptive
+        });
+
+        map.region = new mapkit.CoordinateRegion(
+          new mapkit.Coordinate(DEFAULT_REGION.centerLatitude, DEFAULT_REGION.centerLongitude),
+          new mapkit.CoordinateSpan(DEFAULT_REGION.latitudeDelta, DEFAULT_REGION.longitudeDelta)
+        );
+
+        await loadPOIs();
+        addPOIMarkers();
+
+        const trails = await loadTrails();
+        addTrailOverlays(trails);
+
+        document.getElementById('loading').style.display = 'none';
+
+      } catch (error) {
+        console.error('Error initializing MapKit:', error);
+        document.getElementById('loading').innerHTML =
+          `<div class="text-red-600 bg-white p-4 rounded-lg shadow-lg max-w-lg mx-auto">
+            <h3 class="font-bold mb-2">MapKit Error</h3>
+            <p>${error.message || 'Please check your MapKit JS token.'}</p>
+            <p class="mt-2 text-sm text-gray-600">Check the browser console for more details.</p>
+          </div>`;
+      }
+    }
+
+    // Event Listeners
+    document.getElementById('homeBtn').addEventListener('click', () => {
+      window.location.href = 'index.html';
+    });
+
+    document.getElementById('mapToggleBtn').addEventListener('click', () => {
+      const icon = document.getElementById('mapToggleIcon');
+      if (map.mapType === mapkit.Map.MapTypes.Standard) {
+        map.mapType = mapkit.Map.MapTypes.Satellite;
+        icon.src = 'images/globe.svg';
+        icon.alt = 'Globe';
+      } else {
+        map.mapType = mapkit.Map.MapTypes.Standard;
+        icon.src = 'images/map.svg';
+        icon.alt = 'Map';
+      }
+    });
+
+    const modal = document.getElementById('layersModal');
+    const layerCheckboxes = document.querySelectorAll('.layer-checkbox');
+
+    document.getElementById('layersBtn').addEventListener('click', () => modal.classList.add('active'));
+    document.getElementById('closeModal').addEventListener('click', () => modal.classList.remove('active'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
+
+    document.getElementById('showAllBtn').addEventListener('click', () => {
+      layerCheckboxes.forEach(cb => { cb.checked = true; showCategory(cb.dataset.category); });
+    });
+
+    document.getElementById('hideAllBtn').addEventListener('click', () => {
+      layerCheckboxes.forEach(cb => { cb.checked = false; hideCategory(cb.dataset.category); });
+    });
+
+    layerCheckboxes.forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        e.target.checked ? showCategory(e.target.dataset.category) : hideCategory(e.target.dataset.category);
+      });
+    });
+
+    function showCategory(category) {
+      if (category === 'Trails') {
+        trailOverlays.forEach(o => { if (!map.overlays.includes(o)) map.addOverlay(o); });
+        trailAnnotations.forEach(a => { if (!map.annotations.includes(a)) map.addAnnotation(a); });
+      } else if (poiAnnotations[category]) {
+        poiAnnotations[category].forEach(a => { if (!map.annotations.includes(a)) map.addAnnotation(a); });
+      }
+    }
+
+    function hideCategory(category) {
+      if (category === 'Trails') {
+        trailOverlays.forEach(o => map.removeOverlay(o));
+        trailAnnotations.forEach(a => map.removeAnnotation(a));
+      } else if (poiAnnotations[category]) {
+        poiAnnotations[category].forEach(a => map.removeAnnotation(a));
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const check = setInterval(() => {
+        if (typeof mapkit !== 'undefined') { clearInterval(check); initMapKit(); }
+      }, 100);
+
+      setTimeout(() => {
+        if (typeof mapkit === 'undefined') {
+          clearInterval(check);
+          document.getElementById('loading').innerHTML =
+            '<div class="text-red-600 bg-white p-4 rounded-lg shadow-lg">MapKit JS failed to load. Please check your internet connection.</div>';
+        }
+      }, 10000);
+    });
+  </script>
+
+</body>
+</html>
