@@ -353,7 +353,8 @@
 
           const iconImg = document.createElement('img');
           iconImg.src = iconUrl;
-          iconImg.style.cssText = 'width: 30px; height: 30px; display: block;';
+          const iconSize = poi.category === 'Vincent' ? '50px' : '30px';
+          iconImg.style.cssText = `width: ${iconSize}; height: ${iconSize}; display: block;`;
           iconImg.alt = poi.name;
 
           const label = document.createElement('div');
