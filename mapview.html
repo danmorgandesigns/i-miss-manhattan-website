@@ -428,13 +428,11 @@
           showsCompass: mapkit.FeatureVisibility.Adaptive
         });
 
-        map.region = new mapkit.CoordinateRegion(
-          new mapkit.Coordinate(DEFAULT_REGION.centerLatitude, DEFAULT_REGION.centerLongitude),
-          new mapkit.CoordinateSpan(DEFAULT_REGION.latitudeDelta, DEFAULT_REGION.longitudeDelta)
-        );
+        map.center = new mapkit.Coordinate(DEFAULT_REGION.centerLatitude, DEFAULT_REGION.centerLongitude);
+        map.cameraDistance = 100; // meters above ground
 
         map.cameraZoomRange = new mapkit.CameraZoomRange({
-          minCameraDistance: 50,
+          minCameraDistance: 100,
           maxCameraDistance: 50000
         });
 
