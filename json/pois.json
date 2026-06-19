@@ -1,1 +1,10 @@
-[]
+[
+      {
+    "latitude" : 39.17968,
+    "longitude" : -96.56055,
+    "description" : "This is the description for Vincent's Pool Hall.",
+    "category" : "Vincent",
+    "imageURL" : "https://cdn.vincentspoolhall.com/thumbs/vph-pool-hall-1.jpg",
+    "name" : "Vincent's Pool Hall"
+  }
+]

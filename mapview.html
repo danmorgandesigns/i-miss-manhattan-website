@@ -140,6 +140,7 @@
 
     // Category to SVG icon mapping
     const CATEGORY_ICONS = {
+      'Vincent': 'images/vvg.svg',
       'Art Installation': 'images/art.svg',
       'Building': 'images/building.svg',
       'Garden': 'images/garden.svg',
@@ -402,8 +403,10 @@
           }
         };
 
-        if (!poiAnnotations[poi.category]) poiAnnotations[poi.category] = [];
-        poiAnnotations[poi.category].push(annotation);
+        if (poi.category !== 'Vincent') {
+          if (!poiAnnotations[poi.category]) poiAnnotations[poi.category] = [];
+          poiAnnotations[poi.category].push(annotation);
+        }
         map.addAnnotation(annotation);
       });
 
