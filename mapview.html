@@ -433,6 +433,11 @@
           new mapkit.CoordinateSpan(DEFAULT_REGION.latitudeDelta, DEFAULT_REGION.longitudeDelta)
         );
 
+        map.cameraZoomRange = new mapkit.CameraZoomRange({
+          minCameraDistance: 200,
+          maxCameraDistance: 50000
+        });
+
         await loadPOIs();
         addPOIMarkers();
 
